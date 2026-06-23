@@ -1,0 +1,38 @@
+namespace CodeBrix.Python; //was previously: Python.Runtime;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+using CodeBrix.Python.Mixins;
+
+public sealed class InteropConfiguration: IDisposable
+{
+    internal readonly PythonBaseTypeProviderGroup pythonBaseTypeProviders
+        = new();
+
+    /// <summary>Enables replacing base types of CLR types as seen from Python</summary>
+    public IList<IPythonBaseTypeProvider> PythonBaseTypeProviders => this.pythonBaseTypeProviders;
+
+    public static InteropConfiguration MakeDefault()
+    {
+        return new InteropConfiguration
+        {
+            PythonBaseTypeProviders =
+            {
+                DefaultBaseTypeProvider.Instance,
+                new CollectionMixinsProvider(new Lazy<PyObject>(() => Py.Import("clr._extras.collections"))),
+                new DynamicObjectMixinsProvider(new Lazy<PyObject>(() => Py.Import("clr._extras.dlr"))),
+            },
+        };
+    }
+
+    public void Dispose()
+    {
+        foreach (var provider in PythonBaseTypeProviders.OfType<IDisposable>())
+        {
+            provider.Dispose();
+        }
+        PythonBaseTypeProviders.Clear();
+    }
+}

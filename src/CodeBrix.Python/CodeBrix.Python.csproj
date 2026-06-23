@@ -1,0 +1,124 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CodeBrix.Python</AssemblyName>
+    <RootNamespace>CodeBrix.Python</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      SITUATIONAL EXCEPTIONS (faithful port of pythonnet 3.1.0):
+        * Nullable=annotations - the upstream Python.NET interop code is
+          nullable-reference-type-aware throughout; stripping `?` annotations
+          would change observable signatures and break fidelity (same motivation
+          as CodeBrix.Platform.OpenGL's Nullable exception). "annotations" mode
+          (rather than "enable") honors the `?` annotations - keeping the public
+          API signatures byte-identical to pythonnet - while turning off nullable
+          FLOW warnings, which on net10 are almost entirely BCL-annotation drift
+          versus the upstream's original netstandard2.0 target (the code is
+          nullable-warning-clean on netstandard2.0), not real defects.
+        * NoWarn 1591      - the public interop surface is large and largely
+          undocumented upstream; retrofitting XML doc comments on every member
+          is out of scope. The doc file is still generated. (Same exception as
+          CodeBrix.AssemblyTools / CodeBrix.Platform.OpenGL.)
+        * NoWarn for the legacy serialization + Code-Access-Security family
+          (SYSLIB0011, SYSLIB0050, SYSLIB0051, SYSLIB0003, CS0672) - pythonnet's
+          public types implement formatter-based serialization (ISerializable /
+          IFormatter / BinaryFormatter / GetObjectData) and carry CAS attributes
+          (SecurityPermission). These APIs are obsolete on .NET but were not
+          flagged on the upstream's netstandard2.0 target. They are kept to
+          preserve the public API surface (functional parity with pythonnet
+          3.1.0); on .NET 10 they are inert / gracefully fall back at run time
+          (e.g. RuntimeData falls back to a NoopFormatter). The one genuinely
+          replaceable call (FormatterServices.GetUninitializedObject) was fixed
+          at source to RuntimeHelpers.GetUninitializedObject rather than suppressed.
+        * NoWarn CS9088 - one native-interop wrapper (Runtime.PyType_FromSpecWithBases)
+          takes a `scoped in NativeTypeSpec` and forwards it to a function pointer
+          that returns a NewReference; the analyzer conservatively treats the result
+          as aliasing the scoped struct, but the native call does not retain the
+          pointer. The `scoped in` annotation is the correct ref-safety contract;
+          the warning is a benign false positive for this P/Invoke shape.
+        * AllowUnsafeBlocks - required by the native CPython interop.
+    -->
+    <Nullable>annotations</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>1591;SYSLIB0011;SYSLIB0050;SYSLIB0051;SYSLIB0003;CS0672;CS9088</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Package / assembly version: date-stamped and auto-incrementing.
+
+    Format:  1.<x>.<y>.<z>   (every field is derived from UTC "now")
+
+      1  (major)     Always 1 for this library.
+      x  (minor)     Whole years since $(_VersionBaseYear).
+                     With base 2026: 2026=0, 2027=1, 2028=2, ...
+      y  (build)     Day of year, 1-based inclusive, UTC.
+                     Jan 1 = 1, Feb 1 = 32, Dec 31 = 365 (366 in a leap year).
+      z  (revision)  Minute of day, UTC, range 0 to 1439.
+                     00:00 = 0, 23:59 = 1439.
+
+    The version is always strictly increasing over time:
+      * within a day, z grows;
+      * at a day boundary, y increments and outranks z resetting to 0;
+      * at a (UTC) year boundary, x increments and outranks y and z resetting.
+
+    Notes / caveats:
+      * All fields read from System.DateTime.UtcNow, so a local dev build and a
+        UTC CI build agree on the value. Math.Floor on the minutes keeps z in
+        0..1439 (plain rounding could land on 1440 late in the day).
+      * Because the value depends on the clock, every build produces a NEW
+        version. With GeneratePackageOnBuild=true that means a fresh .nupkg on
+        each build, and two builds in the SAME UTC minute produce the SAME
+        version (so do not publish two packages from within one minute).
+      * This is date-stamp versioning, not SemVer: minor encodes the year and
+        major is pinned to 1, so major/minor do not signal API compatibility.
+      * To re-baseline the minor number, change _VersionBaseYear below.
+  -->
+  <PropertyGroup>
+    <_VersionBaseYear>2026</_VersionBaseYear>
+    <_VersionYears>$([MSBuild]::Subtract($([System.DateTime]::UtcNow.Year), $(_VersionBaseYear)))</_VersionYears>
+    <_VersionDayOfYear>$([System.DateTime]::UtcNow.DayOfYear)</_VersionDayOfYear>
+    <_VersionMinuteOfDay>$([System.Convert]::ToInt32($([System.Math]::Floor($([System.DateTime]::UtcNow.TimeOfDay.TotalMinutes)))))</_VersionMinuteOfDay>
+    <BuildVersion>1.$(_VersionYears).$(_VersionDayOfYear).$(_VersionMinuteOfDay)</BuildVersion>
+    <Version>$(BuildVersion)</Version>
+    <AssemblyVersion>$(BuildVersion)</AssemblyVersion>
+    <FileVersion>$(BuildVersion)</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>CodeBrix.Python.MitLicenseForever</PackageId>
+    <Product>CodeBrix.Python</Product>
+    <Title>CodeBrix.Python</Title>
+    <Authors>Jeremy Ellis</Authors>
+    <Description>Cross-platform Python and .NET language interoperability for .NET 10 and later. A faithful port of Python.NET (pythonnet) 3.1.0 under the CodeBrix.Python namespace: embed and call CPython from .NET, marshal objects between the two runtimes, and host the CLR from Python via the embedded clr module.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ellisnet/CodeBrix.Python</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ellisnet/CodeBrix.Python</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageIcon>icon-codebrix-128.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) 2006-2025 The Contributors of the Python.NET Project. Copyright (c) 2026 Jeremy Ellis and contributors.</Copyright>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <IsPackable>true</IsPackable>
+    <PackageTags>python;interop;cpython;clr;dynamic;pinvoke;embedding;CodeBrix</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\icon-codebrix-128.png" Pack="true" PackagePath="" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+    <None Include="..\..\AGENT-README.txt" Pack="true" PackagePath="" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\clr.py">
+      <LogicalName>clr.py</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\interop.py">
+      <LogicalName>interop.py</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Mixins\*.py" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CodeBrix.Python.TestSupport</AssemblyName>
+    <RootNamespace>CodeBrix.Python.TestSupport</RootNamespace>
+    <Nullable>annotations</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <NoWarn>1591;SYSLIB0011;SYSLIB0050;SYSLIB0051;SYSLIB0003;CS0672;CS9088</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CodeBrix.Python\CodeBrix.Python.csproj" />
+  </ItemGroup>
+
+</Project>

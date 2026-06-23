@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="AGENT-README.txt" />
+    <File Path="icon-codebrix-128.png" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+    <File Path="THIRD-PARTY-NOTICES.txt" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/CodeBrix.Python.Tests/CodeBrix.Python.Tests.csproj" />
+    <Project Path="tests/CodeBrix.Python.TestSupport/CodeBrix.Python.TestSupport.csproj" />
+    <Project Path="tests/CodeBrix.Python.PythonTests/CodeBrix.Python.PythonTests.csproj" />
+  </Folder>
+  <Project Path="src/CodeBrix.Python/CodeBrix.Python.csproj" />
+</Solution>
