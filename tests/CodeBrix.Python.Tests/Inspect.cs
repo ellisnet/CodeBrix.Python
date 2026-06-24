@@ -30,9 +30,12 @@ public class Inspect
         {
             scope.Import("inspect");
         }
-        catch (PythonException)
+        catch (PythonException ex)
         {
-            Assert.Skip("Python build does not include inspect module");
+            Assert.Fail(
+                "This test requires the embedded Python build to include the standard 'inspect' " +
+                "module, but importing it failed. Use a Python runtime whose standard library " +
+                "includes 'inspect'. Underlying import error: " + ex.Message);
             return;
         }
 

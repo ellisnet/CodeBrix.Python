@@ -93,12 +93,6 @@ public class TestPyBuffer : IDisposable
     [Fact]
     public void Finalization()
     {
-        if (Type.GetType("Mono.Runtime") is not null)
-        {
-            Assert.Skip("test unreliable in Mono");
-            return;
-        }
-
         using var _ = Py.GIL();
         using var arr = ByteArrayFromAsciiString("hello world! !$%&/()=?");
 
@@ -153,9 +147,14 @@ public class TestPyBuffer : IDisposable
             {
                 return Py.Import("numpy");
             }
-            catch (PythonException)
+            catch (PythonException ex)
             {
-                Assert.Skip("Numpy or dependency not installed");
+                Assert.Fail(
+                    "This test requires the 'numpy' package, but it could not be imported by the " +
+                    "embedded Python interpreter. Install numpy into the Python runtime these tests " +
+                    "use (the libpython located via PYTHONNET_PYDLL / appsettings.json). " +
+                    MissingPythonPackage.InstallHint("numpy") +
+                    " Underlying import error: " + ex.Message);
                 return null;
             }
         }

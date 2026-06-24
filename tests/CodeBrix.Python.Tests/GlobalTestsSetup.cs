@@ -20,10 +20,10 @@ public sealed partial class GlobalTestsSetup : IDisposable
     /// <summary>Initializes the Python engine for the whole test assembly.</summary>
     public GlobalTestsSetup()
     {
-        // On Windows, point the embedded interpreter at libpython via appsettings.json
-        // (process-scoped PYTHONNET_PYDLL) so no persistent environment variable is
-        // needed. No-op on Linux/macOS, which use the existing venv/env-var discovery.
-        WindowsPythonDll.EnsureSet();
+        // On Windows and macOS, point the embedded interpreter at libpython via
+        // appsettings.json (process-scoped PYTHONNET_PYDLL) so no persistent environment
+        // variable is needed. No-op on Linux, which uses the existing venv/env-var discovery.
+        PlatformPythonDll.EnsureSet();
 
         Finalizer.Instance.ErrorHandler += FinalizerErrorHandler;
         PythonEngine.Initialize();

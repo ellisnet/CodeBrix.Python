@@ -85,9 +85,14 @@ public class NumPyTests : IDisposable
             {
                 return Py.Import("numpy");
             }
-            catch (PythonException)
+            catch (PythonException ex)
             {
-                Assert.Skip("Numpy or dependency not installed");
+                Assert.Fail(
+                    "This test requires the 'numpy' package, but it could not be imported by the " +
+                    "embedded Python interpreter. Install numpy into the Python runtime these tests " +
+                    "use (the libpython located via PYTHONNET_PYDLL / appsettings.json). " +
+                    MissingPythonPackage.InstallHint("numpy") +
+                    " Underlying import error: " + ex.Message);
                 return null;
             }
         }
