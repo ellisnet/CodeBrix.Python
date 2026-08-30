@@ -13,7 +13,8 @@ and objects across the Python/CLR boundary, and - through the embedded Python
 
 Target framework: .NET 10 or later.
 
-Provenance: this library is a faithful port of Python.NET (pythonnet) 3.1.0.
+Provenance: this library is a faithful port of Python.NET (pythonnet) 3.1.0,
+plus that project's newer CPython 3.15 support.
 Every upstream `Python.Runtime[.X]` namespace became `CodeBrix.Python[.X]`, and
 the assembly was renamed from Python.Runtime to CodeBrix.Python. Do NOT write
 `using Python.Runtime;` and do NOT add an upstream pythonnet package reference

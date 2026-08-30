@@ -134,8 +134,13 @@ public class PythonEngine : IDisposable
         }
     }
 
-    public static Version MinSupportedVersion => new(3, 7);
-    public static Version MaxSupportedVersion => new(3, 14, int.MaxValue, int.MaxValue);
+    // Min is 3.10, not upstream-master's nominal value: the floor is set by the
+    // Native/TypeOffset3XX.cs tables that ABI.Initialize resolves by reflection, and
+    // TypeOffset310.cs is the lowest one present. (Upstream master reports 3.10 but
+    // deleted its TypeOffset310.cs when regenerating it as TypeOffset315.cs, so it
+    // cannot actually serve 3.10; this port keeps that table and so genuinely can.)
+    public static Version MinSupportedVersion => new(3, 10);
+    public static Version MaxSupportedVersion => new(3, 15, int.MaxValue, int.MaxValue);
     public static bool IsSupportedVersion(Version version) => version >= MinSupportedVersion && version <= MaxSupportedVersion;
 
     public static string Version

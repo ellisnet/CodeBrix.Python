@@ -1652,8 +1652,6 @@ public unsafe partial class Runtime
 
     internal static void PyObject_GC_UnTrack(BorrowedReference ob) => Delegates.PyObject_GC_UnTrack(ob);
 
-    internal static void _PyObject_Dump(BorrowedReference ob) => Delegates._PyObject_Dump(ob);
-
     //====================================================================
     // Python memory API
     //====================================================================

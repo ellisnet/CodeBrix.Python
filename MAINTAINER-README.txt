@@ -133,8 +133,14 @@ Three projects:
   tests/CodeBrix.Python.Tests
       The embedding tests, converted from the upstream NUnit suite to xUnit v3
       + SilverAssertions. They embed a real CPython interpreter.
-      At the time of the port: 233 passing, 0 failing, 7 skipped (the upstream
-      [Explicit] and version-gated cases). Deterministic across runs.
+      As of 2026-08-30 (on CPython 3.13): 263 passing, 0 failing, 0 skipped.
+      Deterministic across runs. The count shows 0 skipped because the upstream
+      [Explicit] / environment-gated cases are fenced behind compile-time
+      symbols that are intentionally left UNDEFINED
+      (ENABLE_GLOBAL_STATE_MUTATION_TESTS, ENABLE_FINALIZER_CHECK_TESTS,
+      ENABLE_OLDER_PYTHON_TESTS), so they are not compiled in at all rather
+      than reported as Skipped. Each such site carries a comment saying how to
+      exercise it.
 
   tests/CodeBrix.Python.TestSupport
       The C# support assembly that Python imports during the tests (upstream
@@ -143,11 +149,14 @@ Three projects:
   tests/CodeBrix.Python.PythonTests
       Carries the upstream Python pytest suite (the .py files under pytests/,
       with their .NET namespace references renamed) plus conftest and fixtures.
-      Its IN-PROCESS pytest runner is currently SKIPPED: running pytest inside
-      the embedded interpreter with clr.AddReference assembly discovery is not
-      yet stable under the xUnit host. The .py suite can still be run directly
-      with pytest against the built assemblies. Wiring the in-process runner to
-      green is a known follow-up.
+      Its full IN-PROCESS pytest runner (the RunPythonTest theory) is fenced
+      behind a compile-time symbol that is intentionally left UNDEFINED:
+      running pytest inside the embedded interpreter with clr.AddReference
+      assembly discovery is not yet stable under the xUnit host. What DOES run
+      is two smoke tests (2 passing) confirming that pytest imports inside the
+      embedded interpreter and that pytest.approx works. The .py suite can
+      still be run directly with pytest against the built assemblies. Wiring
+      the in-process runner to green is a known follow-up.
 
 Test parallelization is DISABLED assembly-wide and engine init/shutdown happens
 once, in an xUnit assembly fixture:
@@ -240,7 +249,11 @@ knowing:
 PROVENANCE AND VENDORED SOURCES
 ===============================
 The whole library is a faithful port of Python.NET (pythonnet) 3.1.0 (git tag
-v3.1.0, commit 3d76836e80284aae8abcac92e1676d7d83178ec1), MIT licensed. The
+v3.1.0, commit 3d76836e80284aae8abcac92e1676d7d83178ec1), MIT licensed, plus
+the CPython 3.15 support cherry-picked from upstream master commit
+d2d27164cdcb62ea022a51ffc3ed78f338f01803 ("Python 3.15", PR #2729) - unreleased
+upstream work toward 3.2.0. See "UPSTREAM TRACKING" below for exactly what was
+taken and what was deliberately not. The
 authoritative, detailed record - what was incorporated, what was changed, what
 was deliberately left out, and the upstream license text - is
 THIRD-PARTY-NOTICES.txt. Read it before any upstream-tracking work. In summary:
@@ -269,6 +282,55 @@ THIRD-PARTY-NOTICES.txt. Read it before any upstream-tracking work. In summary:
 When updating against a newer upstream release, work file by file, preserve the
 `//was previously:` comments, and update THIRD-PARTY-NOTICES.txt (version, tag,
 commit and the modification list) in the same change.
+
+
+UPSTREAM TRACKING
+=================
+Upstream master as of 2026-08-30 (d2d2716) is four commits past the v3.1.0 tag
+this port is based on, and only one of them touches ported source:
+
+    d2d2716  Python 3.15 (#2729)         -> TAKEN, see below
+    107e9a5  Update dependencies (#2739) -> N/A (uv.lock / NUnit; this repo's
+                                            suite is xUnit v3 + SilverAssertions
+                                            and carries no uv tooling)
+    10c5531  Migrate to slnx (#2733)     -> N/A (already on CodeBrix.Python.slnx)
+    fa7b3b7  Back to dev                 -> N/A (version.txt / CHANGELOG stub)
+
+No upstream bug fix, memory-leak fix or behavioural correction is outstanding.
+Everything of that kind - the MethodBinding/OverloadMapper leak fix (#2719), the
+DLR get/set work, the IDisposable context-manager protocol (#2568), the missing
+__all__ on re-import fix (#2717) - landed BEFORE v3.1.0 and is already here.
+
+What was taken from d2d2716:
+  -> Native/TypeOffset315.cs added. Derived from this repo's TypeOffset314.cs
+     (which is byte-identical to upstream's, modulo the namespace rename,
+     file-scoped conversion and the provenance comment); the only content delta
+     is the new 3.15 slot `tp_iteritem`, inserted after the commented-out
+     `tp_versions_used`. The upstream diff LOOKS large only because git matched
+     their new file against their deleted TypeOffset310.cs as a rename.
+  -> The _PyObject_Dump P/Invoke wiring was removed from Runtime.Delegates.cs
+     (assignment + property) and Runtime.cs (wrapper). It is a private CPython
+     symbol that 3.15 no longer exports, it had NO call sites here, and - unlike
+     the PyObject_GC_IsTracked lookup right above it - its lookup was not inside
+     a try/catch, so a missing symbol would let MissingMethodException escape
+     Runtime.Delegates initialization and fail PythonEngine.Initialize() outright.
+  -> PythonEngine.MaxSupportedVersion raised 3.14 -> 3.15.
+
+DELIBERATE DIVERGENCE - do not "fix" this back toward upstream:
+  -> PythonEngine.MinSupportedVersion was raised 3.7 -> 3.10, and
+     Native/TypeOffset310.cs was KEPT.
+     The old 3.7 was never honest: the real floor is set by the
+     Native/TypeOffset3XX.cs tables ABI.Initialize resolves by reflection, and
+     the lowest table present is 310, so 3.7-3.9 died in ABI.Initialize with
+     NotSupportedException instead of being cleanly rejected.
+     Upstream master also reports 3.10 - but it DELETED TypeOffset310.cs when it
+     regenerated that file as TypeOffset315.cs, so upstream cannot actually serve
+     CPython 3.10 from a plain assembly (only via a setup.py-generated
+     NativeTypeOffset, which a NuGet consumer never has). Their pyproject.toml
+     now says requires-python ">=3.11" and their CI matrix tests 3.11-3.15, so
+     their MinSupportedVersion = 3.10 reads as an oversight.
+     Keeping TypeOffset310.cs makes this port's declared range - CPython 3.10
+     through 3.15 - actually true, and strictly better than upstream master.
 
 
 CODING CONVENTIONS

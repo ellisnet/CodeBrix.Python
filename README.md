@@ -1,13 +1,13 @@
 # CodeBrix.Python
 
-A cross-platform Python ↔ .NET language-interoperability library for .NET 10 and later. CodeBrix.Python is a faithful port of [Python.NET (pythonnet)](https://github.com/pythonnet/pythonnet) 3.1.0, re-namespaced to `CodeBrix.Python.*` and retargeted to run exclusively on modern .NET. It lets you embed and drive a CPython interpreter from C#, marshal objects across the Python/CLR boundary, and (from the Python side, via the embedded `clr` module) load and use .NET assemblies.
+A cross-platform Python ↔ .NET language-interoperability library for .NET 10 and later. CodeBrix.Python is a faithful port of [Python.NET (pythonnet)](https://github.com/pythonnet/pythonnet) 3.1.0 (plus upstream's newer CPython 3.15 support), re-namespaced to `CodeBrix.Python.*` and retargeted to run exclusively on modern .NET. It lets you embed and drive a CPython interpreter from C#, marshal objects across the Python/CLR boundary, and (from the Python side, via the embedded `clr` module) load and use .NET assemblies.
 CodeBrix.Python is provided as a .NET 10 library and associated `CodeBrix.Python.MitLicenseForever` NuGet package.
 
 CodeBrix.Python supports applications and assemblies that target Microsoft .NET version 10.0 and later.
 Microsoft .NET version 10.0 is a Long-Term Supported (LTS) version of .NET, and was released on Nov 11, 2025; and will be actively supported by Microsoft until Nov 14, 2028.
 Please update your C#/.NET code and projects to the latest LTS version of Microsoft .NET.
 
-CodeBrix.Python requires a CPython runtime (libpython) to be available at run time. It supports the same CPython versions as pythonnet 3.1.0 (CPython 3.10 through 3.14).
+CodeBrix.Python requires a CPython runtime (libpython) to be available at run time. It supports CPython 3.10 through 3.15. Rather than hard-coding that range, ask the library: `PythonEngine.MinSupportedVersion`, `PythonEngine.MaxSupportedVersion` and `PythonEngine.IsSupportedVersion(version)`.
 
 ## CodeBrix.Python supports:
 

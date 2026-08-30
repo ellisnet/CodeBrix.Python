@@ -2,7 +2,8 @@ THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
 
 CodeBrix.Python is a cross-platform Python and .NET language-interoperability
 library. It is a faithful port of the Python.NET (pythonnet) project, version
-3.1.0, re-namespaced to CodeBrix.Python.* and retargeted to .NET 10.
+3.1.0 (plus the post-3.1.0 CPython 3.15 support cherry-picked from upstream
+master), re-namespaced to CodeBrix.Python.* and retargeted to .NET 10.
 
 CodeBrix.Python incorporates source code adapted from the open-source project
 listed below, distributed under the MIT License, which is compatible with the
@@ -20,7 +21,10 @@ upstream namespace the file was adapted from.
 
 Project:    Python.NET (pythonnet)
 Source URL: https://github.com/pythonnet/pythonnet
-Version:    3.1.0 (git tag v3.1.0, commit 3d76836e80284aae8abcac92e1676d7d83178ec1)
+Version:    3.1.0 (git tag v3.1.0, commit 3d76836e80284aae8abcac92e1676d7d83178ec1),
+            plus the CPython 3.15 support from upstream master commit
+            d2d27164cdcb62ea022a51ffc3ed78f338f01803 ("Python 3.15", PR #2729),
+            which at the time of writing is unreleased upstream work toward 3.2.0.
 Authors:    The Contributors of the Python.NET Project
 License:    MIT
 
@@ -65,6 +69,20 @@ Modifications made during the port:
       kept for API parity; on .NET 10 these are obsolete/inert (the engine falls
       back to a NoopFormatter at run time). FormatterServices.GetUninitializedObject
       was replaced with the supported RuntimeHelpers.GetUninitializedObject.
+    - CPython 3.15 support was cherry-picked from upstream master d2d2716, which
+      postdates the v3.1.0 tag: Native/TypeOffset315.cs was added, the private
+      CPython symbol _PyObject_Dump (unavailable in 3.15, and unused by this
+      library) is no longer looked up, and PythonEngine.MaxSupportedVersion was
+      raised from 3.14 to 3.15.
+    - PythonEngine.MinSupportedVersion was raised from 3.7 to 3.10. This is a
+      DELIBERATE DIVERGENCE from upstream master. The real floor has always been
+      set by the Native/TypeOffset3XX.cs tables that ABI.Initialize resolves by
+      reflection, and the lowest one present is TypeOffset310.cs; the old value
+      of 3.7 could never be honored. Upstream master also reports 3.10, but it
+      DELETED its TypeOffset310.cs when regenerating that file as
+      TypeOffset315.cs, so upstream cannot in fact serve CPython 3.10. This port
+      keeps TypeOffset310.cs, and therefore genuinely supports CPython 3.10
+      through 3.15.
 
 ----- Python.NET (pythonnet) MIT License -----
 
