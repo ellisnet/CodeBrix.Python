@@ -1,13 +1,14 @@
 using System;
-using CodeBrix.Python;
 using Xunit;
+using Xunit.Sdk;   // ParallelMode
+using Xunit.v3;    // ParallelizationAttribute
 
 // CodeBrix port: the upstream NUnit [SetUpFixture] (assembly-wide one-time
 // setup/teardown) becomes an xUnit v3 assembly fixture. Test parallelization is
 // disabled because the embedded CPython interpreter is single-threaded under the
 // Global Interpreter Lock.
 [assembly: AssemblyFixture(typeof(CodeBrix.Python.Tests.GlobalTestsSetup))]
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Parallelization(Mode = ParallelMode.None)]
 
 namespace CodeBrix.Python.Tests; //was previously: Python.EmbeddingTest;
 

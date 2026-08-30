@@ -1,10 +1,10 @@
 using System;
-using System.IO;
-using CodeBrix.Python;
 using Xunit;
+using Xunit.Sdk;   // ParallelMode
+using Xunit.v3;    // ParallelizationAttribute
 
 // The embedded CPython interpreter is single-threaded under the GIL.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Parallelization(Mode = ParallelMode.None)]
 
 namespace CodeBrix.Python.Tests.PythonSuite; //was previously: Python.PythonTestsRunner;
 
