@@ -24,7 +24,17 @@ AGENT-README.txt instead - this file has nothing you need.
 
 REPOSITORY LAYOUT
 =================
-    CodeBrix.Python.slnx            Solution (Solution Items + Tests folder)
+    CodeBrix.Python.slnx            Solution. The Solution Items folder carries
+                                    .gitignore, AGENT-README.txt,
+                                    EXTRAS-README.txt, global.json,
+                                    icon-codebrix-128.png, LICENSE,
+                                    MAINTAINER-README.txt, README-INDEX.txt,
+                                    README.md and THIRD-PARTY-NOTICES.txt; the
+                                    Tests folder carries the three test
+                                    projects.
+    global.json                     Selects the Microsoft.Testing.Platform test
+                                    runner. Does NOT pin an SDK version. See
+                                    BUILDING and TESTING below.
     AGENT-README.txt                Consumer documentation; SHIPS in the nupkg
     MAINTAINER-README.txt           This file
     EXTRAS-README.txt               Non-package content
@@ -78,6 +88,16 @@ BUILDING
 Target framework is net10.0 only, everywhere. There is no netstandard target
 and none should be added.
 
+global.json at the repo root does NOT pin an SDK version, so the newest
+installed .NET 10 SDK is still used. It exists solely to select the test
+runner:
+
+    { "test": { "runner": "Microsoft.Testing.Platform" } }
+
+Because that setting lives in global.json rather than in the csprojs, it
+applies to every `dotnet test` run anywhere in the repository, including CI.
+Keep the file committed - see TESTING for what breaks without it.
+
 The library csproj carries documented, situational exceptions to the CodeBrix
 family conventions. They exist to keep the port faithful; do not "clean them
 up" without reading the comment block in
@@ -128,6 +148,19 @@ TESTING
 =======
     dotnet test CodeBrix.Python.slnx
 
+THE TEST RUNNER IS Microsoft.Testing.Platform (MTP), selected by global.json at
+the repo root. Do not delete that file. Both test projects use the xunit.v3 4.x
+dialect, which runs under MTP; without global.json, `dotnet test` falls back to
+the older VSTest bridge, where an xunit.v3 4.x assembly can report zero tests
+found instead of failing loudly. You can tell which one ran: MTP output ends in
+a "Test run summary:" block, while the VSTest bridge invokes MSBuild with
+`--target:VSTest`.
+
+Neither test project references coverlet.collector; it was removed
+deliberately, so `dotnet test` collects NO code coverage here. Adding a
+coverage collector back is a decision, not a cleanup - do not re-add it as a
+side effect of another change.
+
 Three projects:
 
   tests/CodeBrix.Python.Tests
@@ -162,7 +195,11 @@ Test parallelization is DISABLED assembly-wide and engine init/shutdown happens
 once, in an xUnit assembly fixture:
 tests/CodeBrix.Python.Tests/GlobalTestsSetup.cs declares
 `[assembly: AssemblyFixture(typeof(GlobalTestsSetup))]` and
-`[assembly: CollectionBehavior(DisableTestParallelization = true)]`. The
+`[assembly: Parallelization(Mode = ParallelMode.None)]`. The same
+Parallelization attribute is declared independently in
+tests/CodeBrix.Python.PythonTests/PythonTestRunner.cs, because the setting is
+per test assembly. Both files need `using Xunit.Sdk;` (for ParallelMode) and
+`using Xunit.v3;` (for ParallelizationAttribute) alongside `using Xunit;`. The
 embedded interpreter is single-threaded under the GIL, so this is not
 negotiable.
 

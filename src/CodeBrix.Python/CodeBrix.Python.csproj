@@ -90,7 +90,7 @@
     <Product>CodeBrix.Python</Product>
     <Title>CodeBrix.Python</Title>
     <Authors>Jeremy Ellis</Authors>
-    <Description>Cross-platform Python and .NET language interoperability for .NET 10 and later. A faithful port of Python.NET (pythonnet) 3.1.0 (plus upstream's newer CPython 3.15 support) under the CodeBrix.Python namespace: embed and call CPython from .NET, marshal objects between the two runtimes, and host the CLR from Python via the embedded clr module.</Description>
+    <Description>Cross-platform Python and .NET language interoperability for .NET 10 and later. Embed and call CPython from .NET, marshal objects between the two runtimes, and host the CLR from Python via the embedded clr module - all under the CodeBrix.Python namespace. A CPython shared library must be available at run time; the supported CPython range is reported by PythonEngine.MinSupportedVersion and PythonEngine.MaxSupportedVersion rather than pinned here.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/ellisnet/CodeBrix.Python</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ellisnet/CodeBrix.Python</RepositoryUrl>

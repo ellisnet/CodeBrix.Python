@@ -13,8 +13,9 @@ and objects across the Python/CLR boundary, and - through the embedded Python
 
 Target framework: .NET 10 or later.
 
-Provenance: this library is a faithful port of Python.NET (pythonnet) 3.1.0,
-plus that project's newer CPython 3.15 support.
+Provenance: this library is a faithful port of Python.NET (pythonnet),
+including that project's newer CPython support. THIRD-PARTY-NOTICES.txt in the
+package carries the exact upstream revisions and the licence text.
 Every upstream `Python.Runtime[.X]` namespace became `CodeBrix.Python[.X]`, and
 the assembly was renamed from Python.Runtime to CodeBrix.Python. Do NOT write
 `using Python.Runtime;` and do NOT add an upstream pythonnet package reference
@@ -88,10 +89,12 @@ point (PyObjectConversions) live in `CodeBrix.Python`, while the concrete
 built-in codecs live in `CodeBrix.Python.Codecs` - implementing a custom codec
 usually needs BOTH usings.
 
-There is also a `CodeBrix.Python.Native` namespace, but it exposes no public
-types; it is internal interop plumbing. "PythonTypes", "Types", "Util",
-"CollectionWrappers", "StateSerialization" and "Mixins" are SOURCE FOLDERS, not
-namespaces - their public types live in `CodeBrix.Python`.
+Several other sub-namespaces DO exist but expose no public types at all, so you
+never write a using for them: `CodeBrix.Python.Native` (internal interop
+plumbing), `.CollectionWrappers`, `.Mixins`, `.StateSerialization`, `.Platform`,
+`.Reflection` and `.Slots`. Their consumer-visible types live in
+`CodeBrix.Python`. "PythonTypes", "Types" and "Util" are SOURCE FOLDERS, not
+namespaces at all - their public types are likewise in `CodeBrix.Python`.
 
 
 CORE API REFERENCE
