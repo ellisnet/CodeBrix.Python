@@ -1,12 +1,11 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
-
 using CodeBrix.Python.Native;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 public static class Py
 {

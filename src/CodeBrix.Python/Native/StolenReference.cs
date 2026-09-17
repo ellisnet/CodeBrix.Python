@@ -1,9 +1,9 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 /// <summary>
 /// Should only be used for the arguments of Python C API functions, that steal references,

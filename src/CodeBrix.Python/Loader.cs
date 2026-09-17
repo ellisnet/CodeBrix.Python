@@ -1,10 +1,9 @@
 using System;
 using System.IO;
 using System.Text;
+using static CodeBrix.Python.Runtime;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
-
-using static Runtime;
 
 [Obsolete("Only to be used from within Python")]
 static class Loader

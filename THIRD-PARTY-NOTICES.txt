@@ -2,8 +2,9 @@ THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
 
 CodeBrix.Python is a cross-platform Python and .NET language-interoperability
 library. It is a faithful port of the Python.NET (pythonnet) project, version
-3.1.0 (plus the post-3.1.0 CPython 3.15 support cherry-picked from upstream
-master), re-namespaced to CodeBrix.Python.* and retargeted to .NET 10.
+3.1.0 (plus the post-3.1.0 CPython 3.15 support and Python 3.14 free-threaded
+support cherry-picked from upstream master), re-namespaced to CodeBrix.Python.*
+and retargeted to .NET 10.
 
 CodeBrix.Python incorporates source code adapted from the open-source project
 listed below, distributed under the MIT License, which is compatible with the
@@ -24,7 +25,10 @@ Source URL: https://github.com/pythonnet/pythonnet
 Version:    3.1.0 (git tag v3.1.0, commit 3d76836e80284aae8abcac92e1676d7d83178ec1),
             plus the CPython 3.15 support from upstream master commit
             d2d27164cdcb62ea022a51ffc3ed78f338f01803 ("Python 3.15", PR #2729),
-            which at the time of writing is unreleased upstream work toward 3.2.0.
+            and the Python 3.14 free-threaded support from upstream master commit
+            7b08d70cc8d0c021abe14c05cb6a6515d653ff61 ("Python 3.14 free-threaded
+            support", PR #2721), both of which at the time of writing are
+            unreleased upstream work toward 3.2.0.
 Authors:    The Contributors of the Python.NET Project
 License:    MIT
 
@@ -74,6 +78,45 @@ Modifications made during the port:
       CPython symbol _PyObject_Dump (unavailable in 3.15, and unused by this
       library) is no longer looked up, and PythonEngine.MaxSupportedVersion was
       raised from 3.14 to 3.15.
+    - Python 3.14 free-threaded support was cherry-picked from upstream master
+      7b08d70, which also postdates the v3.1.0 tag. It covers three things:
+      (a) thread-safety corrections that apply to every build - concurrent
+      collections for the reflected-type, generic-binding, delegate-dispatcher,
+      module-attribute and borrowed-reference caches, atomic claim of the
+      per-object GCHandle slot, locks around Reflection.Emit, a thread-safe
+      lazy MethodBinder.GetMethods with precomputed precedence, an atomic
+      PyBuffer dispose guard, and finalizer/shutdown guards that short-circuit
+      when CPython is already finalizing; (b) detection of the free-threaded
+      (Py_GIL_DISABLED) build through sys._is_gil_enabled, the larger object
+      header it implies, a try-loaded Py_REFCNT P/Invoke, and a
+      NotSupportedException for free-threaded interpreters below CPython 3.14;
+      and (c) probing of the free-threaded libpython file names during
+      virtual-environment discovery. The accompanying upstream tests were
+      ported too (the finalizer, interrupt, native-type-offset and PyBuffer
+      embedding tests, the threading support assembly, and the test_thread.py /
+      test_subclass.py pytest files). The upstream CI workflow changes and the
+      new doc/source/threading.rst page were not incorporated as files; the
+      threading guidance was folded into AGENT-README.txt instead.
+    - Virtual-environment support was EXTENDED beyond the upstream shape, a
+      DELIBERATE DIVERGENCE. Upstream can only be told about a virtual
+      environment through the PYTHONNET_VENV / VIRTUAL_ENV environment
+      variables, which are read exactly once by a static initializer. This port
+      adds a public PythonEngine.VirtualEnvironment property that configures the
+      same mechanism from code at any point before initialization, validates the
+      folder it is given, verifies after startup that sys.prefix really became
+      that environment, probes the Linux multiarch library folder
+      (../lib/<gnu-tuple>) that Debian-family distributions use, and reads the
+      pyvenv.cfg version_info key written by the virtualenv tool, which
+      System.Version cannot parse on its own. No upstream type, member or
+      namespace was renamed or removed for any of it.
+    - An opt-in choice of what happens to the interpreter at process exit was
+      ADDED, a DELIBERATE DIVERGENCE. Upstream's AppDomain.ProcessExit handler
+      shuts the interpreter down and waits for the GIL indefinitely, which
+      deadlocks any process that never called Shutdown() itself. That default is
+      unchanged here; what is new is the public enum ProcessExitShutdownMode and
+      the PythonEngine.ProcessExitShutdown / ProcessExitShutdownTimeout
+      properties, which let an application bound that wait or skip it. No
+      upstream type or member was renamed or removed for it.
     - PythonEngine.MinSupportedVersion was raised from 3.7 to 3.10. This is a
       DELIBERATE DIVERGENCE from upstream master. The real floor has always been
       set by the Native/TypeOffset3XX.cs tables that ABI.Initialize resolves by

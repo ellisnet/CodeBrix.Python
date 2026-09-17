@@ -1,10 +1,9 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
 using CodeBrix.Python.Mixins;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 public sealed class InteropConfiguration: IDisposable
 {

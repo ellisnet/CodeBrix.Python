@@ -27,6 +27,8 @@ The package has no NuGet dependencies; it calls into the CPython shared library 
 * Embedding CPython in a .NET application and executing Python code from C#.
 * Importing Python modules and calling Python functions, classes, and objects from .NET.
 * Marshalling values and objects between the CPython and CLR type systems.
+* Running inside a Python virtual environment named from code - `PythonEngine.VirtualEnvironment = "/path/to/venv"` before `Initialize()` - so the packages installed there are importable, with a startup check that reports it clearly if the environment did not take effect.
+* Choosing what happens to the interpreter when the process exits without an explicit `PythonEngine.Shutdown()` - keep the default blocking shutdown, bound it with a timeout, or skip it.
 * Hosting the CLR from Python through the embedded `clr` module (load .NET assemblies, call .NET APIs from Python).
 * A complete Python/CLR interop API surface - engine lifecycle and the GIL, typed Python object wrappers, scopes, the buffer protocol, custom conversion codecs, .NET types subclassed from Python, and interpreter state serialization - under the `CodeBrix.Python` namespace.
 
@@ -36,7 +38,7 @@ CodeBrix.Python requires a CPython runtime (libpython) to be available at run ti
 
 Rather than hard-coding a supported version range that will go stale, ask the library: `PythonEngine.MinSupportedVersion`, `PythonEngine.MaxSupportedVersion` and `PythonEngine.IsSupportedVersion(version)`.
 
-Point the library at the runtime either by assigning `Runtime.PythonDLL` before `PythonEngine.Initialize()`, or by setting the `PYTHONNET_PYDLL` environment variable for the process. Third-party Python packages such as numpy are not bundled - install them into the CPython installation or virtual environment being embedded.
+Point the library at the runtime either by assigning `Runtime.PythonDLL` before `PythonEngine.Initialize()`, or by setting the `PYTHONNET_PYDLL` environment variable for the process. To run inside a virtual environment, assign `PythonEngine.VirtualEnvironment` instead and libpython is resolved from the environment's own `pyvenv.cfg`. Third-party Python packages such as numpy are not bundled - install them into the CPython installation or virtual environment being embedded.
 
 ## Sample Code
 

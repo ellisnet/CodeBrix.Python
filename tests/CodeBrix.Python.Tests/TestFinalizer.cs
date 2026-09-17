@@ -31,6 +31,7 @@ public class TestFinalizer : IDisposable
     {
         GC.Collect();
         GC.WaitForPendingFinalizers();
+        GC.Collect(); // reclaim objects whose finalizers just ran
     }
 
     [Fact]
@@ -52,16 +53,22 @@ public class TestFinalizer : IDisposable
         Finalizer.Instance.BeforeCollect += handler;
 
         IntPtr pyObj = MakeAGarbage(out var shortWeak, out var longWeak);
-        FullGCCollect();
-        // The object has been resurrected
-// Warn.If removed (NUnit advisory)
-        Assert.True(longWeak.IsAlive);
 
+        // The real contract: after the wrapper is GC'd, the underlying
+        // Python pointer must end up in Finalizer's queue.  Poll because
+        // .NET runtimes differ in how many GC cycles it takes.
+        List<IntPtr> garbage = null;
+        for (int attempt = 0; attempt < 10; attempt++)
         {
-            var garbage = Finalizer.Instance.GetCollectedObjects();
-            Assert.NotEmpty(garbage);
-// NUnit Warn removed (advisory only)
+            FullGCCollect();
+            garbage = Finalizer.Instance.GetCollectedObjects();
+            if (garbage.Contains(pyObj)) break;
+            Thread.Sleep(20);
         }
+
+        // shortWeak.IsAlive / longWeak.IsAlive here are .NET-GC-implementation-defined
+        // (the upstream project only warns about them); intentionally not asserted.
+        Assert.Contains(pyObj, garbage);
         try
         {
             Finalizer.Instance.Collect();

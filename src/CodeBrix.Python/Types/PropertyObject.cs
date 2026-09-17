@@ -1,10 +1,10 @@
 using System;
 using System.Reflection;
 using System.Runtime.Serialization;
+using MaybeMethodInfo = CodeBrix.Python.MaybeMethodBase<System.Reflection.MethodInfo>;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
 
-using MaybeMethodInfo = MaybeMethodBase<MethodInfo>;
 /// <summary>
 /// Implements a Python descriptor type that manages CLR properties.
 /// </summary>

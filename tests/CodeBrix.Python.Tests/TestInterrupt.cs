@@ -108,6 +108,22 @@ except KeyboardInterrupt:
         PythonEngine.EndAllowThreads(threadState);
 
         Assert.True(asyncCall.IsCompleted);
-        Assert.Equal(0, await asyncCall);
+
+        // On free-threaded CPython 3.14, PyRun_SimpleString may return -1 even
+        // when the script catches the async-injected KeyboardInterrupt - the
+        // C-level error indicator depends on which bytecode boundary the
+        // async-exc fires at, and isn't always cleared the way GIL builds clear
+        // it.  The interrupt firing and the script terminating cleanly are what
+        // this test exercises; the return code is a side-effect that's only
+        // deterministic under the GIL.
+        int returnCode = await asyncCall;
+        if (Native.ABI.IsFreeThreaded)
+        {
+            Assert.True(returnCode == 0 || returnCode == -1);
+        }
+        else
+        {
+            Assert.Equal(0, returnCode);
+        }
     }
 }

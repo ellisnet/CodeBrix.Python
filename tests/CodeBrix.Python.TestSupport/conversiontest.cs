@@ -1,7 +1,7 @@
-namespace CodeBrix.Python.TestSupport; //was previously: Python.Test;
-
 using System;
 using System.Collections.Generic;
+
+namespace CodeBrix.Python.TestSupport; //was previously: Python.Test;
 
 /// <summary>
 /// Supports unit tests for field access.

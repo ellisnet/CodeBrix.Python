@@ -1,6 +1,6 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 /// <summary>
 /// Defines conversion from CLR objects into Python objects (e.g. <see cref="PyObject"/>) (marshalling)

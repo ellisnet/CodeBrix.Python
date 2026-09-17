@@ -1,6 +1,5 @@
 // ReSharper disable InconsistentNaming
 // ReSharper disable IdentifierTypo
-namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 using System;
 using System.Collections.Generic;
@@ -8,8 +7,9 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-
 using CodeBrix.Python.Native;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 [SuppressMessage("Style", "IDE1006:Naming Styles",
                  Justification = "Following CPython",

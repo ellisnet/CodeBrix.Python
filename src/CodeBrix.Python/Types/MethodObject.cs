@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using MaybeMethodInfo = CodeBrix.Python.MaybeMethodBase<System.Reflection.MethodBase>;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
-
-using MaybeMethodInfo = MaybeMethodBase<MethodBase>;
 
 /// <summary>
 /// Implements a Python type that represents a CLR method. Method objects

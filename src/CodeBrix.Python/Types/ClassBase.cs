@@ -360,7 +360,7 @@ internal class ClassBase : ManagedType, IDeserializationCallback
         if (TryFreeGCHandle(ob))
         {
             IntPtr addr = ob.DangerousGetAddress();
-            bool deleted = CLRObject.reflectedObjects.Remove(addr);
+            bool deleted = CLRObject.reflectedObjects.TryRemove(addr, out _);
             Debug.Assert(deleted);
         }
 
@@ -374,7 +374,8 @@ internal class ClassBase : ManagedType, IDeserializationCallback
         return 0;
     }
 
-    static readonly HashSet<IntPtr> ClearVisited = new();
+    // tp_clear re-entrancy guard; per-thread since recursion is intra-stack.
+    [ThreadStatic] static HashSet<IntPtr>? _clearVisited;
 
     internal static unsafe int BaseUnmanagedClear(BorrowedReference ob)
     {
@@ -390,12 +391,12 @@ internal class ClassBase : ManagedType, IDeserializationCallback
         if (clearPtr == TypeManager.subtype_clear)
         {
             var addr = ob.DangerousGetAddress();
-            if (!ClearVisited.Add(addr))
+            var visited = _clearVisited ??= new HashSet<IntPtr>();
+            if (!visited.Add(addr))
                 return 0;
 
-            int res = clear(ob);
-            ClearVisited.Remove(addr);
-            return res;
+            try { return clear(ob); }
+            finally { visited.Remove(addr); }
         }
         else
         {

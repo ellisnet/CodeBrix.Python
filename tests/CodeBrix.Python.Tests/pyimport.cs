@@ -87,12 +87,36 @@ namespace CodeBrix.Python.Tests //was previously: Python.EmbeddingTest;
 
             Assert.True(File.Exists(path));
 
+            // The path goes into a Python string literal, so a Windows path's backslashes have
+            // to be escaped: CPython reads \W, \S and \k as invalid escape sequences and warns
+            // about them today (a SyntaxError in a future release).
+            string pythonPath = path.Replace("\\", "\\\\");
+
             string code = $@"
 import clr
-clr.AddReference('{path}')
+clr.AddReference('{pythonPath}')
 ";
 
             Assert.Throws<BadImageFormatException>(() => PythonEngine.Exec(code));
+        }
+
+        /// <summary>
+        /// Fences the escaping BadAssembly does. A Windows path put into a Python string literal
+        /// unescaped is read by CPython as a run of invalid escape sequences - a warning today,
+        /// a SyntaxError in a future release - and the path it names is not the path that
+        /// arrives. This runs on every operating system because the hazard is the literal, not
+        /// the file system.
+        /// </summary>
+        [Fact]
+        public void WindowsStylePathSurvivesAPythonStringLiteral()
+        {
+            const string original = @"C:\Windows\System32\kernel32.dll";
+            string escaped = original.Replace("\\", "\\\\");
+
+            using var scope = Py.CreateScope();
+            scope.Exec($"value = '{escaped}'");
+
+            Assert.Equal(original, scope.Get<string>("value"));
         }
     }
 }

@@ -6,6 +6,9 @@ using System.Text.Json;
 
 namespace CodeBrix.Python.Tests;
 
+// NOTE: This file is intentionally identical to the copies in the sibling test projects.
+// Every test project locates libpython the same way; keep the copies in sync.
+
 /// <summary>
 /// Platform-specific test bootstrapping helper. Before <c>PythonEngine.Initialize()</c>
 /// runs, it points the embedded interpreter at a libpython shared library by exporting

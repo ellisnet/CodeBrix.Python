@@ -28,9 +28,13 @@ internal class TypeManager
 
 
     private const BindingFlags tbFlags = BindingFlags.Public | BindingFlags.Static;
-    private static readonly Dictionary<MaybeType, PyType> cache = new();
+    // Multi-step creation in GetType is serialised via _cacheCreateLock.
+    internal static readonly ConcurrentDictionary<MaybeType, PyType> cache = new();
+    internal static readonly object _cacheCreateLock = new();
 
-    static readonly Dictionary<PyType, SlotsHolder> _slotsHolders = new(PythonReferenceComparer.Instance);
+    // Concurrent: documents the multi-writer contract previously enforced
+    // by callers happening to hold _cacheCreateLock.
+    static readonly ConcurrentDictionary<PyType, SlotsHolder> _slotsHolders = new(PythonReferenceComparer.Instance);
 
     // Slots which must be set
     private static readonly string[] _requiredSlots = new string[]
@@ -259,7 +263,7 @@ internal class TypeManager
     internal static TypeManagerState SaveRuntimeData()
         => new()
         {
-            Cache = cache,
+            Cache = new Dictionary<MaybeType, PyType>(cache),
         };
 
     internal static void RestoreRuntimeData(TypeManagerState storage)
@@ -278,14 +282,16 @@ internal class TypeManager
 
     internal static PyType GetType(Type type)
     {
-        // Note that these types are cached with a refcount of 1, so they
-        // effectively exist until the CPython runtime is finalized.
-        if (!cache.TryGetValue(type, out var pyType))
+        // Cached with refcount 1; effectively lives until the CPython runtime is finalised.
+        if (cache.TryGetValue(type, out var pyType)) return pyType;
+        // CreateType + cache write must be atomic so two threads do not both allocate.
+        lock (_cacheCreateLock)
         {
+            if (cache.TryGetValue(type, out pyType)) return pyType;
             pyType = CreateType(type);
             cache[type] = pyType;
+            return pyType;
         }
-        return pyType;
     }
     /// <summary>
     /// Given a managed Type derived from ExtensionType, get the handle to
@@ -944,7 +950,7 @@ internal class TypeManager
     {
         type = new PyType(type);
         var holder = new SlotsHolder(type);
-        _slotsHolders.Add(type, holder);
+        _slotsHolders[type] = holder;
         return holder;
     }
 }

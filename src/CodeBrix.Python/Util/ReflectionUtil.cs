@@ -1,7 +1,7 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Reflection;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 static class ReflectionUtil
 {

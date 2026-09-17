@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using MaybeMethodInfo = CodeBrix.Python.MaybeMethodBase<System.Reflection.MethodBase>;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
 
-using MaybeMethodInfo = MaybeMethodBase<MethodBase>;
 /// <summary>
 /// Implements a Python binding type for CLR methods. These work much like
 /// standard Python method bindings, but the same type is used to bind

@@ -1,6 +1,6 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 /// <summary>
 /// Controls visibility to Python for public .NET type or an entire assembly

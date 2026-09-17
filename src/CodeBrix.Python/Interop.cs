@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using CodeBrix.Python.Reflection;
-using System.Reflection;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
 
@@ -104,7 +105,8 @@ public enum TypeFlags: long
 
 internal class Interop
 {
-    static readonly Dictionary<MethodInfo, Type> delegateTypes = new();
+    // Concurrent: type-slot installation can race past TryGetValue.
+    static readonly ConcurrentDictionary<MethodInfo, Type> delegateTypes = new();
 
     internal static Type GetPrototype(MethodInfo method)
     {
@@ -131,7 +133,7 @@ internal class Interop
 
             if (invoke.ReturnType != method.ReturnType) continue;
 
-            delegateTypes.Add(method, candidate);
+            delegateTypes.TryAdd(method, candidate);
             return candidate;
         }
 
@@ -139,7 +141,9 @@ internal class Interop
     }
 
 
-    internal static Dictionary<IntPtr, Delegate> allocatedThunks = new();
+    // Concurrent: documents the multi-writer contract previously enforced
+    // by callers happening to hold TypeManager._cacheCreateLock.
+    internal static ConcurrentDictionary<IntPtr, Delegate> allocatedThunks = new();
 
     internal static ThunkInfo GetThunk(MethodInfo method)
     {

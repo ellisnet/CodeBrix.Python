@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A console host that exists so the tests can observe what the library does at PROCESS EXIT,
+    which is the one thing an in-process test cannot see. CodeBrix.Python.Tests spawns it once
+    per PythonEngine.ProcessExitShutdown mode and watches whether the process ends.
+    Not a test project (no test framework, no test runner) and never packed.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CodeBrix.Python.ExitProbe</AssemblyName>
+    <RootNamespace>CodeBrix.Python.ExitProbe</RootNamespace>
+    <Nullable>annotations</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CodeBrix.Python\CodeBrix.Python.csproj" />
+  </ItemGroup>
+
+</Project>

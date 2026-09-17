@@ -22,7 +22,30 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CodeBrix.Python\CodeBrix.Python.csproj" />
     <ProjectReference Include="..\CodeBrix.Python.TestSupport\CodeBrix.Python.TestSupport.csproj" />
+    <!--
+      The exit probe is a console application, not a library: it is referenced only so that it is
+      built before these tests run, and its output is copied below rather than linked.
+    -->
+    <ProjectReference Include="..\CodeBrix.Python.ExitProbe\CodeBrix.Python.ExitProbe.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false" />
   </ItemGroup>
+
+  <!--
+    Copy the built exit probe into a sub-folder of this project's output, so the tests can find it
+    from AppContext.BaseDirectory on every operating system instead of guessing at a sibling
+    project's bin path at run time. The item group is inside the target, so the wildcard is
+    expanded after the ProjectReference above has produced the files.
+  -->
+  <Target Name="CopyExitProbeToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_ExitProbeOutput Include="$(MSBuildThisFileDirectory)..\CodeBrix.Python.ExitProbe\bin\$(Configuration)\$(TargetFramework)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ExitProbeOutput)"
+          DestinationFiles="@(_ExitProbeOutput->'$(OutDir)exitprobe\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_ExitProbeOutput)' != ''" />
+  </Target>
 
   <ItemGroup>
     <None Include="fixtures\**\*.py" CopyToOutputDirectory="PreserveNewest" />

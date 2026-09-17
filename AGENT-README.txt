@@ -107,12 +107,30 @@ order, and the FIRST one that yields a path wins:
 
   1. `Runtime.PythonDLL` set from code (the explicit, deterministic route).
   2. The `PYTHONNET_PYDLL` environment variable.
-  3. Virtual-environment discovery: if `PYTHONNET_VENV` (preferred) or
-     `VIRTUAL_ENV` names a directory containing `pyvenv.cfg`, the `home` and
-     `version` keys in that file are used to locate libpython next to the base
-     interpreter (../lib and, on 64-bit Linux, ../lib64), and the venv's
-     `bin/python` (`Scripts\python.exe` on Windows) becomes the program name.
+  3. `PythonEngine.VirtualEnvironment` set from code - see USING A VIRTUAL
+     ENVIRONMENT below. libpython is resolved from the environment's own
+     `pyvenv.cfg`, but a path from step 1 or 2 is kept in preference to it,
+     because a virtual environment never carries a libpython of its own.
+  4. Virtual-environment discovery from the process environment: if
+     `PYTHONNET_VENV` (preferred) or `VIRTUAL_ENV` names a directory containing
+     `pyvenv.cfg`, the `home` and `version` keys in that file are used to locate
+     libpython next to the base interpreter, and the environment's `bin/python`
+     (`Scripts\python.exe` on Windows) becomes the program name.
      `PYTHONNET_PYEXE` overrides the program name independently.
+
+Where libpython is looked for, relative to the base interpreter's `home`:
+
+    Windows   the folder itself (python3XX.dll sits next to python.exe)
+    Linux     ../lib, ../lib64 on 64-bit multilib systems, and the multiarch
+              folder ../lib/<gnu-tuple> (for example
+              ../lib/x86_64-linux-gnu) that Debian, Ubuntu and their
+              derivatives use - where those distributions put libpython and
+              nothing else does
+    macOS     ../lib, which is Versions/<X.Y>/lib in a framework build
+
+Both the ordinary and the free-threaded library names (`libpython3.Xt.so`,
+`python3XXt.dll`) are probed in each of those folders, because `pyvenv.cfg`
+does not record which of the two builds made the environment.
 
 `Runtime` is a PUBLIC class and `Runtime.PythonDLL` is the property consumers
 are expected to set. Its other members are low-level interop and should be
@@ -136,11 +154,77 @@ Interpreter configuration (all `PythonEngine` statics, all set before
     public static void   SetNoSiteFlag()             // disables the site module
     public static bool   DebugGIL { get; set; }      // default false
     public static InteropConfiguration InteropConfiguration { get; set; }
+    public static string? VirtualEnvironment { get; set; }  // see below
 
 Reading `PythonHome` requires an initialized engine (it throws
 `InvalidOperationException` otherwise); the other getters delegate straight to
 the C API. `InteropConfiguration` may only be replaced while the engine is NOT
 running.
+
+USING A VIRTUAL ENVIRONMENT
+---------------------------
+From code (preferred - deterministic, and independent of how the process was
+launched):
+
+    public static string? PythonEngine.VirtualEnvironment { get; set; }
+
+    PythonEngine.VirtualEnvironment = "/home/me/venvs/myproject";
+    PythonEngine.Initialize();
+    using (Py.GIL())
+    {
+        using PyObject np = Py.Import("numpy");   // installed in that venv
+    }
+
+Assign it BEFORE `Initialize()`; afterwards the setter throws
+`InvalidOperationException` ("This property must be set before runtime is
+initialized"), exactly like `Runtime.PythonDLL`.
+
+What the assignment does. It points the interpreter at the environment's
+launcher - `bin/python`, or `Scripts\python.exe` on Windows - which is what
+makes CPython read the environment's `pyvenv.cfg` at startup, report the
+environment as `sys.prefix` (keeping the base installation as
+`sys.base_prefix`), and put the environment's `site-packages` on `sys.path`.
+No `sys.path` manipulation is needed or wanted. When `Runtime.PythonDLL` has
+not been named outright, libpython is also resolved from the base installation
+the `pyvenv.cfg` `home` and `version` keys point at.
+
+What the setter validates, throwing `ArgumentException` naming the path and
+what was missing: the folder exists, it contains a `pyvenv.cfg`, and that file
+has a `home` key. A `null` value throws `ArgumentNullException`. The validation
+runs before the engine's state is checked, so a malformed path is always
+reported as a malformed path.
+
+Reading the property reports the environment in effect whether it was assigned
+from code or discovered from `PYTHONNET_VENV` / `VIRTUAL_ENV`, and `null` when
+there is none. Code wins: an assignment supersedes `PYTHONNET_VENV`,
+`VIRTUAL_ENV` and `PYTHONNET_PYEXE`.
+
+From the environment instead (useful when a launcher script already activates
+the environment):
+
+    PYTHONNET_VENV=/home/me/venvs/myproject dotnet run
+
+Nothing else is needed; the same resolution runs, and `PYTHONNET_PYDLL` is
+still honoured if it is also set.
+
+The startup check. Once CPython has started, the library confirms that
+`sys.prefix` really is the environment that was asked for, and throws
+`InvalidOperationException` when it is not - naming the environment, the
+observed `sys.prefix` and `sys.executable`. An environment that silently fails
+to activate is worse than one that fails loudly: the interpreter runs, but out
+of the wrong prefix, so the packages installed into it are simply not
+importable. The usual causes are:
+
+  -> a `PYTHONHOME` environment variable, which overrides the environment's
+     own prefix;
+  -> a libpython belonging to a different base installation than the one the
+     `pyvenv.cfg` `home` key names;
+  -> assigning `PythonEngine.ProgramName` after `VirtualEnvironment`, which
+     replaces the launcher that does the activation.
+
+Virtual environments record the base interpreter they were made from. If that
+interpreter is upgraded to a new minor version, the environment has to be
+recreated before it will work again.
 
 Read-only interpreter facts (valid after initialization):
 
@@ -159,6 +243,11 @@ Starting and stopping:
                                   bool setSysArgv = true,
                                   bool initSigs = false)
     public static void Shutdown()
+
+Call `Shutdown()` yourself, exactly once, at the end. If you do not, the
+library tries to do it for you while the process is exiting, and that attempt
+can block forever - see SHUTTING DOWN AT PROCESS EXIT below, which also
+documents the two opt-in modes that bound or skip it.
 
 `Initialize` is idempotent - the second and later calls return immediately -
 and it does NOT require the GIL. `setSysArgv:true` publishes `args` (or the
@@ -192,6 +281,98 @@ Interpreter-thread control:
 
 `Interrupt` returns the number of thread states modified - normally 1, and 0
 when the thread id was not found.
+
+
+SHUTTING DOWN AT PROCESS EXIT
+-----------------------------
+Three facts about this library, all inherited from CPython and the CLR:
+
+  1. `Py_InitializeEx`, which `PythonEngine.Initialize()` calls, leaves the
+     Global Interpreter Lock HELD by the thread that called it, and nothing
+     releases it afterwards.
+  2. `Initialize()` subscribes a handler to `AppDomain.ProcessExit`, and the
+     handler calls `Shutdown()`, whose first act needs the GIL.
+  3. The CLR raises `ProcessExit` on its own shutdown thread, while the thread
+     that started the interpreter is parked waiting for the exit handlers to
+     finish.
+
+So a program that initializes the interpreter and then simply returns from
+`Main` asks a shutdown thread to take a lock that only the parked thread could
+release, and nothing times out a `ProcessExit` handler: the process never
+exits. Three ways out, best first.
+
+(1) Own the lifetime - the recommended answer, and the one that needs no
+configuration. Initialize once, shut down exactly once at the end, on the same
+thread; `Shutdown()` unsubscribes the process-exit handler, so the situation
+cannot arise. This is the engine-ownership pattern described in OBJECT LIFETIME
+AND THE FINALIZER; follow it and nothing below applies.
+
+    PythonEngine.Initialize();
+    try
+    {
+        using (Py.GIL())
+        {
+            // ... all Python work ...
+        }
+    }
+    finally
+    {
+        PythonEngine.Shutdown();   // exactly once, at the very end
+    }
+
+(2) Hand the GIL back, when the main thread is done with Python but the
+interpreter should still be finalized properly at exit. `BeginAllowThreads()`
+releases the GIL, which lets the exit handler take it and shut down normally.
+Do this only when that thread will not touch Python again.
+
+    PythonEngine.Initialize();
+    // ... Python work on this thread ...
+    PythonEngine.BeginAllowThreads();   // GIL released; exit can now finalize
+
+(3) Change what the exit handler does, for applications that cannot control
+where or when the process ends - a plug-in host, a background service killed by
+its supervisor, a test harness someone else wrote:
+
+    public static ProcessExitShutdownMode PythonEngine.ProcessExitShutdown { get; set; }
+    public static TimeSpan PythonEngine.ProcessExitShutdownTimeout { get; set; }
+
+    public enum ProcessExitShutdownMode
+    {
+        Wait,             // default: shut down at exit and wait, however long
+        WaitWithTimeout,  // shut down on a helper thread, wait a bounded time
+        Skip,             // do nothing at exit
+    }
+
+Both properties may be assigned before OR after `Initialize()` - the handler
+reads them when the process exits - and both are safe to assign from any
+thread. The default is `Wait`, which is exactly the behaviour described above;
+leaving it alone changes nothing.
+
+    // Bounded: try to finalize Python, but never let it stop the process.
+    PythonEngine.ProcessExitShutdown = ProcessExitShutdownMode.WaitWithTimeout;
+    PythonEngine.ProcessExitShutdownTimeout = TimeSpan.FromSeconds(2);
+    PythonEngine.Initialize();
+
+    // Skip: nothing happens at exit at all.
+    PythonEngine.ProcessExitShutdown = ProcessExitShutdownMode.Skip;
+    PythonEngine.Initialize();
+
+`WaitWithTimeout` runs the shutdown on a helper thread and waits at most
+`ProcessExitShutdownTimeout` (default five seconds) for it. If the shutdown
+finishes in time the result is identical to `Wait`, including any exception it
+raised; if it does not, the handler returns and the process exits with the
+interpreter unfinalized - which costs nothing at that point, because the
+operating system is about to reclaim the whole address space. The timeout must
+be positive; a zero or negative value throws `ArgumentOutOfRangeException`, as
+does a mode value that is not one of the three above.
+
+`Skip` does nothing at all at exit: no Python `atexit` handler runs, buffered
+Python output is not flushed, and nothing the interpreter holds is released
+before the process ends. Prefer it only when the application shuts the engine
+down on its own schedule.
+
+Neither mode is a substitute for (1). They keep a process that would have hung
+from hanging; they do not make an unfinalized interpreter correct.
 
 
 THE GIL AND THREADING
@@ -236,6 +417,45 @@ Rules that are not negotiable:
      Acquire the GIL fresh inside each synchronous segment instead.
   -> A `PyObject` may be created on one thread and used on another, but only
      while that other thread holds the GIL.
+
+Free-threaded CPython (PEP 703). CPython 3.13 introduced a build with the GIL
+compiled out - `Py_GIL_DISABLED`, the interpreters usually labelled `3.13t` and
+`3.14t`. This library detects that build during `Initialize()` and supports it
+from CPython 3.14 onwards; a free-threaded 3.13 is rejected up front with
+`NotSupportedException`, because the reference-count accessor the library needs
+is only exported as a callable symbol from 3.14. Nothing in the API changes:
+
+  -> `Py.GIL()` still ATTACHES the calling thread to the interpreter. On a
+     free-threaded build it no longer serializes anything, but it is still
+     required - attaching a thread state is what makes Python calls legal.
+  -> `BeginAllowThreads` / `EndAllowThreads` still detach and re-attach that
+     thread state, and are still what lets Python's own garbage collector and
+     other Python threads run while you are in long-running unmanaged code.
+  -> `PyObject.Refcount` is read through CPython's `Py_REFCNT` accessor, so it
+     reports the merged reference count correctly on free-threaded builds.
+
+Thread-safety guarantees. The library's own bookkeeping - the reflected-type
+cache, the generic-type binding map, the emitted delegate-dispatcher cache, the
+CLR-namespace module cache, the interned-string table and the borrowed-reference
+registries - is safe to use concurrently. Reading attributes of CLR types,
+resolving generic types, creating CLR objects and invoking delegates may all be
+done from any number of threads, each holding its own `Py.GIL()`, with no extra
+locking on your side. Dynamic subclass emission and delegate-dispatcher emission
+are serialized internally, so concurrent first use of the same type is safe too.
+
+What those guarantees do NOT cover:
+
+  -> Your own data. A managed object handed to Python is still an ordinary CLR
+     object. Concurrent mutation of its fields needs your locking, exactly as it
+     would without Python in the picture.
+  -> A single `PyObject` instance. `PyObject` is not internally locked, and two
+     threads disposing the same wrapper can drive the underlying reference count
+     negative. Give each consumer its own wrapper - `NewReference()`, or
+     `new PyObject(value)` - instead of sharing one.
+  -> Starting a managed thread from inside `using (Py.GIL())` on a GIL build.
+     The new thread's `Py.GIL()` blocks until the parent releases, so the parent
+     must call `BeginAllowThreads()` before waiting for the worker, and
+     `EndAllowThreads(ts)` after.
 
 
 EXECUTING PYTHON CODE
@@ -959,6 +1179,35 @@ standard use is tolerating `RuntimeShutdownException` across an engine
 restart). `Collect()` must be called from a thread that is allowed to run
 Python code.
 
+Engine ownership: initialize once, shut down exactly once, at the end. The
+interpreter is process-wide and cannot be restarted, so give it a single owner -
+one static type, or one DI-registered service - and have it:
+
+  1. Initialize on first use, once, under a lock.
+  2. Refuse further Python work once it has shut down: keep a "shut down" flag
+     and throw a clear exception from every entry point that would otherwise
+     touch a dead interpreter. Re-initializing after `Shutdown()` is not a
+     recoverable state; it faults the process natively rather than throwing.
+  3. Call `PythonEngine.Shutdown()` exactly once, from that owner's `Dispose()`,
+     after all Python work is finished - never in the middle of a run.
+
+Scope every run of Python, and dispose everything it creates inside that scope:
+
+    using var pyState = Py.GIL();
+    using var pyScope = Py.CreateScope();
+    using PyObject result = pyScope.Eval("...");
+    // ... use result ...
+
+That is what makes the final `Shutdown()` clean: no `PyObject` is left for the
+CLR finalizer to release afterwards. It also matters at process exit. If you
+never shut the engine down yourself, the library's own process-exit handler
+tries to do it for you - but the CLR raises that event on a shutdown thread,
+while the thread that called `Initialize()` still holds the interpreter, so the
+attempt can block and the process will not exit. Make the shutdown explicit and
+make it last. When the application genuinely cannot control its own exit, see
+SHUTTING DOWN AT PROCESS EXIT for the two opt-in modes that bound or skip that
+attempt.
+
 
 INTERPRETER STATE SERIALIZATION
 -------------------------------
@@ -1426,10 +1675,17 @@ COMMON PITFALLS TO AVOID
     `PythonPath`, `ProgramName` and `SetNoSiteFlag()`.
 
  6. Expecting libpython to be found automatically. Discovery only covers
-    `PYTHONNET_PYDLL` and virtual environments named by `PYTHONNET_VENV` /
-    `VIRTUAL_ENV` (which must contain a `pyvenv.cfg` with `home` and `version`
-    keys). Outside those cases you MUST set `Runtime.PythonDLL`. A static-only
-    or bitness-mismatched CPython cannot be loaded at all.
+    `PYTHONNET_PYDLL` and virtual environments - `PythonEngine.VirtualEnvironment`
+    from code, or `PYTHONNET_VENV` / `VIRTUAL_ENV` from the process environment -
+    and an environment only resolves a library if its `pyvenv.cfg` carries both a
+    `home` and a `version` key AND the base installation actually ships a shared
+    libpython. Outside those cases you MUST set `Runtime.PythonDLL`. A static-only
+    or bitness-mismatched CPython cannot be loaded at all. Related traps in the
+    same area: assigning `PythonEngine.ProgramName` after `VirtualEnvironment`
+    undoes the activation; `PYTHONHOME` overrides the environment's prefix; and
+    an environment whose base interpreter has since moved to a new minor version
+    has to be recreated. All three are reported at startup rather than silently
+    tolerated - see USING A VIRTUAL ENVIRONMENT.
 
  7. Assuming `Shutdown()` can be undone. Its own contract is that "the Python
     runtime can no longer be used in the current process after calling the
@@ -1495,6 +1751,24 @@ COMMON PITFALLS TO AVOID
 20. Assuming `[PyExport(false)]` hides a type from .NET. It only hides it from
     Python; the type remains public to CLR callers.
 
+21. Sharing one `PyObject` instance between threads. The library's own caches
+    are thread-safe, but an individual wrapper is not: two threads disposing the
+    same instance can drive the underlying reference count negative, and a
+    producer that disposes while a consumer is still reading leaves the consumer
+    on freed memory. Hand each thread its own wrapper via `NewReference()` (or
+    `new PyObject(value)`), and remember that every thread still needs its own
+    `Py.GIL()` - on free-threaded builds as much as on GIL builds.
+
+22. Letting the process exit without calling `Shutdown()`. The library's
+    process-exit handler then tries to shut the engine down from the CLR's
+    shutdown thread while the initializing thread still holds the interpreter,
+    and that blocks forever - the process never exits. Own the engine
+    explicitly: initialize once, shut down exactly once at the end. When the
+    application cannot control its own exit, opt into
+    `PythonEngine.ProcessExitShutdown`. Both are in SHUTTING DOWN AT PROCESS
+    EXIT, with the ownership pattern itself in OBJECT LIFETIME AND THE
+    FINALIZER.
+
 
 WHAT THIS PACKAGE DOES NOT DO
 =============================
@@ -1547,6 +1821,9 @@ C# embedding tests (tests/CodeBrix.Python.Tests/):
 
   Engine lifecycle and properties
     .../blob/main/tests/CodeBrix.Python.Tests/TestPythonEngineProperties.cs
+  What happens to the interpreter at process exit, and the ways out
+    .../blob/main/tests/CodeBrix.Python.Tests/ProcessExitShutdownModeTests.cs
+    .../blob/main/tests/CodeBrix.Python.ExitProbe/Program.cs
   Exec / Eval / RunSimpleString
     .../blob/main/tests/CodeBrix.Python.Tests/pyrunstring.cs
   Scopes, PyModule Set/Get/Exec/Eval/Compile+Execute
@@ -1604,6 +1881,17 @@ C# embedding tests (tests/CodeBrix.Python.Tests/):
     .../blob/main/tests/CodeBrix.Python.Tests/StateSerialization/MethodSerialization.cs
   Locating libpython on each OS (a copyable bootstrap helper)
     .../blob/main/tests/CodeBrix.Python.Tests/PlatformPythonDll.cs
+  Virtual-environment discovery and validation
+    .../blob/main/tests/CodeBrix.Python.Tests/PythonEnvironmentTests.cs
+    .../blob/main/tests/CodeBrix.Python.Tests/PythonEngineTests.cs
+
+Running inside a virtual environment, end to end
+(tests/CodeBrix.Python.VenvTests/) - creating an environment, pointing the
+engine at it with PythonEngine.VirtualEnvironment, and checking sys.prefix,
+sys.executable and that the environment's site-packages is importable:
+
+  .../blob/main/tests/CodeBrix.Python.VenvTests/GlobalTestsSetup.cs
+  .../blob/main/tests/CodeBrix.Python.VenvTests/PythonEngineTests.cs
 
 .NET types written to be consumed FROM Python
 (tests/CodeBrix.Python.TestSupport/) - the best models for your own
@@ -1626,6 +1914,7 @@ QUICK REFERENCE CARD
 
     SETUP (all BEFORE Initialize)
       Runtime.PythonDLL = "<path to libpython>";
+      PythonEngine.VirtualEnvironment = "<path to venv>";  // finds libpython too
       PythonEngine.PythonHome / PythonPath / ProgramName = "...";
       PythonEngine.SetNoSiteFlag();
       PythonEngine.DebugGIL = true;                    // dev only
@@ -1638,6 +1927,10 @@ QUICK REFERENCE CARD
       PythonEngine.IsInitialized
       PythonEngine.AddShutdownHandler(handler);
       PythonEngine.Shutdown();                         // final for the process
+      PythonEngine.ProcessExitShutdown = ProcessExitShutdownMode.Wait;
+                                          // .WaitWithTimeout | .Skip - opt out
+                                          // of the blocking shutdown at exit
+      PythonEngine.ProcessExitShutdownTimeout = TimeSpan.FromSeconds(2);
 
     GIL
       using (Py.GIL()) { ... }
@@ -1693,7 +1986,8 @@ QUICK REFERENCE CARD
       RuntimeShutdownException = object outlived its interpreter run
 
     GOLDEN RULES
-      1. Initialize once, shut down once, per process.
+      1. Initialize once, shut down once, per process - and do the shutting
+         down yourself, or the process may never exit.
       2. Everything Python happens inside using (Py.GIL()).
       3. Acquire and release the GIL on the same thread; never await inside.
       4. Dispose PyObjects.

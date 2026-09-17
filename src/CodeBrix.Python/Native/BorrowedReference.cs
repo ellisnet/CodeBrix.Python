@@ -1,7 +1,7 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Diagnostics;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 /// <summary>
 /// Represents a reference to a Python object, that is being lent, and

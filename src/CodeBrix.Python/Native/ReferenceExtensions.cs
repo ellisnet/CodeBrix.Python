@@ -1,6 +1,6 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System.Diagnostics.Contracts;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 static class ReferenceExtensions
 {

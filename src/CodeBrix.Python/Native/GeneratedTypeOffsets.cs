@@ -1,8 +1,8 @@
-namespace CodeBrix.Python.Native; //was previously: Python.Runtime.Native;
-
 using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
+
+namespace CodeBrix.Python.Native; //was previously: Python.Runtime.Native;
 
 [StructLayout(LayoutKind.Sequential)]
 abstract class GeneratedTypeOffsets

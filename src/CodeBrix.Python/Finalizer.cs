@@ -36,7 +36,8 @@ public class Finalizer
     [DefaultValue(DefaultThreshold)]
     public int Threshold { get; set; } = DefaultThreshold;
 
-    bool started;
+    // volatile: ThrottledCollect on PyObject ctor races with Initialize.
+    volatile bool started;
 
     [DefaultValue(true)]
     public bool Enable { get; set; } = true;
@@ -113,9 +114,11 @@ public class Finalizer
     {
         if (!started) throw new InvalidOperationException($"{nameof(PythonEngine)} is not initialized");
 
-        _throttled = unchecked(this._throttled + 1);
-        if (!started || !Enable || _throttled < Threshold) return;
-        _throttled = 0;
+        if (!Enable || Interlocked.Increment(ref _throttled) < Threshold) return;
+        // Defends against externally-driven Py_Finalize (e.g. host's atexit):
+        // queue pointers may already be freed, so skip the drain.
+        if (Runtime._Py_IsFinalizing() == true) return;
+        Interlocked.Exchange(ref _throttled, 0);
         this.Collect();
     }
 
@@ -136,7 +139,11 @@ public class Finalizer
             return;
         }
 
-        Debug.Assert(Runtime.Refcount(new BorrowedReference(obj)) > 0);
+        // Skip on FT: the split refcount can race here and trip the assert spuriously.
+        if (!Native.ABI.IsFreeThreaded)
+        {
+            Debug.Assert(Runtime.Refcount(new BorrowedReference(obj)) > 0);
+        }
 
 #if FINALIZER_CHECK
         lock (_queueLock)

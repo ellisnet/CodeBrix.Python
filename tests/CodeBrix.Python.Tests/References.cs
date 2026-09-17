@@ -1,12 +1,12 @@
-namespace CodeBrix.Python.Tests; //was previously: Python.EmbeddingTest;
-
-using Xunit;
+using CodeBrix.Python;
 using SilverAssertions;
 using SilverAssertions.Collections;
 using SilverAssertions.Numeric;
 using SilverAssertions.Primitives;
 using SilverAssertions.Specialized;
-using CodeBrix.Python;
+using Xunit;
+
+namespace CodeBrix.Python.Tests; //was previously: Python.EmbeddingTest;
 
 public class References
 {

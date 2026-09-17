@@ -1,9 +1,9 @@
 using System;
 using System.Reflection;
+using MaybeFieldInfo = CodeBrix.Python.MaybeMemberInfo<System.Reflection.FieldInfo>;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
 
-using MaybeFieldInfo = MaybeMemberInfo<FieldInfo>;
 /// <summary>
 /// Implements a Python descriptor type that provides access to CLR fields.
 /// </summary>

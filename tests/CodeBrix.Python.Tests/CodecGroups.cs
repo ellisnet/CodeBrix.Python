@@ -1,15 +1,15 @@
-namespace CodeBrix.Python.Tests; //was previously: Python.EmbeddingTest;
-
 using System;
 using System.Linq;
-using Xunit;
+using CodeBrix.Python;
+using CodeBrix.Python.Codecs;
 using SilverAssertions;
 using SilverAssertions.Collections;
 using SilverAssertions.Numeric;
 using SilverAssertions.Primitives;
 using SilverAssertions.Specialized;
-using CodeBrix.Python;
-using CodeBrix.Python.Codecs;
+using Xunit;
+
+namespace CodeBrix.Python.Tests; //was previously: Python.EmbeddingTest;
 
 public class CodecGroups
 {

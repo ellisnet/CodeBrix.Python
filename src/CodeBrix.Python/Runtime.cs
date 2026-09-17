@@ -1,14 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
-using System.Collections.Generic;
-using System.IO;
 using CodeBrix.Python.Native;
-using System.Linq;
-using static System.FormattableString;
 
 namespace CodeBrix.Python; //was previously: Python.Runtime;
 
@@ -29,14 +27,19 @@ public unsafe partial class Runtime
             if (_isInitialized)
                 throw new InvalidOperationException("This property must be set before runtime is initialized");
             PythonEnvironment.LibPython = value;
+            // Remember that this libpython was named outright, so that configuring a virtual
+            // environment afterwards keeps it instead of replacing it with the one derived
+            // from that environment's pyvenv.cfg.
+            PythonEnvironment.LibPythonIsExplicit = !string.IsNullOrEmpty(value);
         }
     }
 
     static string? _PythonDll => PythonEnvironment.LibPython;
 
-    private static bool _isInitialized = false;
+    // volatile: read from worker threads, written from Initialize/Shutdown.
+    private static volatile bool _isInitialized = false;
     internal static bool IsInitialized => _isInitialized;
-    private static bool _typesInitialized = false;
+    private static volatile bool _typesInitialized = false;
     internal static bool TypeManagerInitialized => _typesInitialized;
     internal static readonly bool Is32Bit = IntPtr.Size == 4;
 
@@ -53,7 +56,9 @@ public unsafe partial class Runtime
 
     public static int MainManagedThreadId { get; private set; }
 
-    private static readonly List<PyObject> _pyRefs = new ();
+    // Lock guards re-init from embedders racing on SetPyMember/ResetPyMembers.
+    private static readonly List<PyObject> _pyRefs = new();
+    private static readonly object _pyRefsLock = new();
 
     internal static Version PyVersion
     {
@@ -72,7 +77,7 @@ public unsafe partial class Runtime
 
     internal static int GetRun()
     {
-        int runNumber = run;
+        int runNumber = Volatile.Read(ref run);
         Debug.Assert(runNumber > 0, "This must only be called after Runtime is initialized at least once");
         return runNumber;
     }
@@ -146,6 +151,21 @@ public unsafe partial class Runtime
         InitPyMembers();
         ABI.Initialize(PyVersion);
 
+        // CodeBrix addition: a configured virtual environment that did not take effect is a silent
+        // trap - the interpreter runs, but out of the wrong prefix, so the packages the caller
+        // installed are simply not importable. This is the first point where sys.prefix can be read
+        // back as a managed string, and it is still ahead of PythonEngine taking ownership of the
+        // process-exit path, so the failure stays attributable. An interpreter that was already
+        // running when we got here was configured by its own host, not by us.
+        if (!interpreterAlreadyInitialized)
+        {
+            BorrowedReference prefix = PySys_GetObject("prefix");
+            BorrowedReference executable = PySys_GetObject("executable");
+            PythonEnvironment.VerifyActivated(
+                prefix.IsNull ? null : GetManagedString(prefix),
+                executable.IsNull ? null : GetManagedString(executable));
+        }
+
         InternString.Initialize();
 
         GenericUtil.Reset();
@@ -187,8 +207,8 @@ public unsafe partial class Runtime
 
     static void NewRun()
     {
-        run++;
-        using var pyRun = PyLong_FromLongLong(run);
+        int newRun = Interlocked.Increment(ref run);
+        using var pyRun = PyLong_FromLongLong(newRun);
         PySys_SetObject(RunSysPropName, pyRun.BorrowOrThrow());
     }
 
@@ -277,7 +297,7 @@ public unsafe partial class Runtime
                              obj: true, derived: false, buffer: false);
         CLRObject.creationBlocked = true;
 
-        NullGCHandles(ExtensionType.loadedExtensions);
+        NullGCHandles(ExtensionType.loadedExtensions.Keys);
         ClassManager.RemoveClasses();
         TypeManager.RemoveTypes();
         _typesInitialized = false;
@@ -350,7 +370,7 @@ public unsafe partial class Runtime
             }
             else if (forceBreakLoops)
             {
-                NullGCHandles(CLRObject.reflectedObjects);
+                NullGCHandles(CLRObject.reflectedObjects.Keys);
                 CLRObject.reflectedObjects.Clear();
             }
         }
@@ -386,14 +406,14 @@ public unsafe partial class Runtime
             throw PythonException.ThrowLastAsClrException();
         }
         obj = new PyObject(value);
-        _pyRefs.Add(obj);
+        lock (_pyRefsLock) _pyRefs.Add(obj);
     }
 
     private static void SetPyMemberTypeOf(out PyType obj, PyObject value)
     {
         var type = PyObject_Type(value);
         obj = new PyType(type.StealOrThrow(), prevalidated: true);
-        _pyRefs.Add(obj);
+        lock (_pyRefsLock) _pyRefs.Add(obj);
     }
 
     private static void SetPyMemberTypeOf(out PyObject obj, StolenReference value)
@@ -410,9 +430,16 @@ public unsafe partial class Runtime
 
     private static void ResetPyMembers()
     {
-        foreach (var pyObj in _pyRefs)
+        // Snapshot under lock; Dispose() runs outside it so a callback that
+        // re-enters SetPyMember does not deadlock.
+        PyObject[] snapshot;
+        lock (_pyRefsLock)
+        {
+            snapshot = _pyRefs.ToArray();
+            _pyRefs.Clear();
+        }
+        foreach (var pyObj in snapshot)
             pyObj.Dispose();
-        _pyRefs.Clear();
     }
 
     private static void ClearClrModules()
@@ -606,7 +633,8 @@ public unsafe partial class Runtime
     internal static unsafe void XDecref(StolenReference op)
     {
 #if DEBUG
-        Debug.Assert(op == null || Refcount(new BorrowedReference(op.Pointer)) > 0);
+        // Skip on FT: the split refcount can race here and trip the assert spuriously.
+        Debug.Assert(op == null || Native.ABI.IsFreeThreaded || Refcount(new BorrowedReference(op.Pointer)) > 0);
         Debug.Assert(_isInitialized || Py_IsInitialized() != 0 || _Py_IsFinalizing() != false);
 #endif
         if (op == null) return;
@@ -617,12 +645,10 @@ public unsafe partial class Runtime
     [Pure]
     internal static unsafe nint Refcount(BorrowedReference op)
     {
-        if (op == null)
-        {
-            return 0;
-        }
-        var p = (nint*)(op.DangerousGetAddress() + ABI.RefCountOffset);
-        return *p;
+        if (op == null) return 0;
+        // Py_REFCNT is a real symbol on 3.14+; older Pythons expose it as a macro.
+        if (Delegates.Py_REFCNT != null) return Delegates.Py_REFCNT(op);
+        return *(nint*)(op.DangerousGetAddress() + ABI.RefCountOffset);
     }
     [Pure]
     internal static int Refcount32(BorrowedReference op) => checked((int)Refcount(op));

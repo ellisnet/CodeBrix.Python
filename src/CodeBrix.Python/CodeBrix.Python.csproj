@@ -90,7 +90,7 @@
     <Product>CodeBrix.Python</Product>
     <Title>CodeBrix.Python</Title>
     <Authors>Jeremy Ellis</Authors>
-    <Description>Cross-platform Python and .NET language interoperability for .NET 10 and later. Embed and call CPython from .NET, marshal objects between the two runtimes, and host the CLR from Python via the embedded clr module - all under the CodeBrix.Python namespace. A CPython shared library must be available at run time; the supported CPython range is reported by PythonEngine.MinSupportedVersion and PythonEngine.MaxSupportedVersion rather than pinned here.</Description>
+    <Description>Cross-platform Python and .NET language interoperability for .NET 10 and later. Embed and call CPython from .NET, marshal objects between the two runtimes, and host the CLR from Python via the embedded clr module - all under the CodeBrix.Python namespace. The interpreter can be run inside a Python virtual environment named from code, so the packages installed there are importable. A CPython shared library must be available at run time; the supported CPython range is reported by PythonEngine.MinSupportedVersion and PythonEngine.MaxSupportedVersion rather than pinned here.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/ellisnet/CodeBrix.Python</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ellisnet/CodeBrix.Python</RepositoryUrl>
@@ -101,7 +101,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <IsPackable>true</IsPackable>
-    <PackageTags>python;interop;cpython;clr;dynamic;pinvoke;embedding;CodeBrix</PackageTags>
+    <PackageTags>python;interop;cpython;clr;dynamic;pinvoke;embedding;venv;CodeBrix</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

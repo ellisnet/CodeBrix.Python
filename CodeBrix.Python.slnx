@@ -15,6 +15,8 @@
     <Project Path="tests/CodeBrix.Python.Tests/CodeBrix.Python.Tests.csproj" />
     <Project Path="tests/CodeBrix.Python.TestSupport/CodeBrix.Python.TestSupport.csproj" />
     <Project Path="tests/CodeBrix.Python.PythonTests/CodeBrix.Python.PythonTests.csproj" />
+    <Project Path="tests/CodeBrix.Python.VenvTests/CodeBrix.Python.VenvTests.csproj" />
+    <Project Path="tests/CodeBrix.Python.ExitProbe/CodeBrix.Python.ExitProbe.csproj" />
   </Folder>
   <Project Path="src/CodeBrix.Python/CodeBrix.Python.csproj" />
 </Solution>

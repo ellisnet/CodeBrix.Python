@@ -1,9 +1,9 @@
-namespace CodeBrix.Python.Codecs; //was previously: Python.Runtime.Codecs;
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+
+namespace CodeBrix.Python.Codecs; //was previously: Python.Runtime.Codecs;
 
 /// <summary>
 /// Represents a group of <see cref="IPyObjectDecoder"/>s. Useful to group them by priority.

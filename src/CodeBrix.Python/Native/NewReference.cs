@@ -1,9 +1,9 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 /// <summary>
 /// Represents a reference to a Python object, that is tracked by Python's reference counting.

@@ -1,13 +1,12 @@
-namespace CodeBrix.Python; //was previously: Python.Runtime;
-
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-
 using CodeBrix.Python.Codecs;
+
+namespace CodeBrix.Python; //was previously: Python.Runtime;
 
 /// <summary>
 /// This class allows to register additional marshalling codecs.

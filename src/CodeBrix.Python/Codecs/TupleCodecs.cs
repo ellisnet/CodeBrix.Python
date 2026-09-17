@@ -1,9 +1,9 @@
-namespace CodeBrix.Python.Codecs; //was previously: Python.Runtime.Codecs;
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+
+namespace CodeBrix.Python.Codecs; //was previously: Python.Runtime.Codecs;
 
 public sealed class TupleCodec<TTuple> : IPyObjectEncoder, IPyObjectDecoder
 {

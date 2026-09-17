@@ -21,8 +21,8 @@ What:  The C# embedding test suite (xUnit v3 + SilverAssertions), converted
        CPython interpreter.
 Run:   dotnet test tests/CodeBrix.Python.Tests/CodeBrix.Python.Tests.csproj
        (or `dotnet test CodeBrix.Python.slnx` for everything)
-Needs: A CPython shared library reachable by the test process, plus the numpy,
-       pytest and find_libpython packages importable by that interpreter. On
+Needs: A CPython shared library reachable by the test process, plus the numpy
+       and pytest packages importable by that interpreter. On
        Linux the libpython path is auto-discovered from `python3`; on Windows
        and macOS it is read from the appsettings.json copied beside the test
        assembly. See MAINTAINER-README.txt, "HOW THE TESTS FIND CPYTHON".
@@ -72,14 +72,11 @@ What:  The upstream Python-side pytest suite (pytests/*.py, with their .NET
 Run:   dotnet test tests/CodeBrix.Python.PythonTests/CodeBrix.Python.PythonTests.csproj
        What runs is two smoke tests in PythonTestRunner.cs, confirming that
        pytest imports inside the embedded interpreter and that pytest.approx
-       works. The full IN-PROCESS pytest runner in the same file (the
-       RunPythonTest theory) is fenced behind the compile-time symbol
-       ENABLE_INPROCESS_PYTEST_TESTS, which is intentionally left UNDEFINED, so
-       it is not compiled in at all rather than reported as Skipped: running
-       pytest inside the embedded interpreter with clr.AddReference assembly
-       discovery is not yet stable under the xUnit host. The .py suite can be
-       run directly with pytest against the built assemblies. Getting the
-       in-process runner green is a known follow-up.
+       works; the RunPythonTest theory in the same file, which runs pytest.main
+       IN-PROCESS over cases from the carried-over .py suite; and two
+       reflection-only fences that the assembly fixture and the parallelization
+       setting are still declared. The .py suite can also be run directly with
+       pytest against the built assemblies.
 Needs: The same CPython runtime the other test projects need, with pytest
        importable. See MAINTAINER-README.txt, "HOW THE TESTS FIND CPYTHON".
 Shows: The Python side of the library: `import clr`, clr.AddReference,
@@ -88,4 +85,47 @@ Shows: The Python side of the library: `import clr`, clr.AddReference,
        clr.clrmethod / clr.clrproperty, docstrings, codecs, collection mixins,
        delegates, events, generics, indexers, enums, exceptions, threading and
        sys.argv handling.
+
+
+tests/CodeBrix.Python.VenvTests
+===============================
+Path:  tests/CodeBrix.Python.VenvTests/CodeBrix.Python.VenvTests.csproj
+What:  End-to-end proof that PythonEngine.VirtualEnvironment activates a Python
+       virtual environment. It is a separate assembly because an interpreter can
+       only be started once per process.
+Run:   dotnet test tests/CodeBrix.Python.VenvTests/CodeBrix.Python.VenvTests.csproj
+       (or `dotnet test CodeBrix.Python.slnx` for everything)
+Needs: A CPython installation able to create virtual environments
+       (`python3 -m venv`). Nothing is installed and no network is used: the
+       environment is created with --without-pip, into the system temp folder,
+       and deleted again at the end of the run. On Linux the base interpreter is
+       `python3` on PATH; on Windows and macOS it is derived from the libpython
+       path in appsettings.json. See MAINTAINER-README.txt, "TESTING".
+Shows: Setting PythonEngine.VirtualEnvironment before Initialize, and what that
+       buys: sys.prefix becomes the environment, sys.base_prefix stays on the
+       base installation, sys.executable is the environment's launcher, the
+       environment's site-packages is importable, and libpython is resolved from
+       the environment's own pyvenv.cfg.
+
+
+tests/CodeBrix.Python.ExitProbe
+===============================
+Path:  tests/CodeBrix.Python.ExitProbe/CodeBrix.Python.ExitProbe.csproj
+What:  A tiny console application (IsPackable=false, no test framework) that
+       starts an interpreter and returns from Main. What happens next belongs to
+       the CLR's process-exit sequence, which no in-process test can observe, so
+       CodeBrix.Python.Tests runs this as a child process - once per
+       PythonEngine.ProcessExitShutdown mode - and watches whether it ends.
+Run:   Built as part of the solution and copied into the exitprobe sub-folder of
+       the CodeBrix.Python.Tests output, which is where the tests look for it.
+       To run it by hand:
+         PYTHONNET_PYDLL=<libpython> \
+           dotnet tests/CodeBrix.Python.Tests/bin/Release/net10.0/exitprobe/CodeBrix.Python.ExitProbe.dll <mode>
+       The modes are default, bounded, skip, shutdown and allowthreads. The
+       "default" mode HANGS on purpose; run it under a timeout.
+Needs: PYTHONNET_PYDLL naming a libpython. The probe does no discovery of its
+       own - the test that spawns it passes the value it discovered.
+Shows: The three ways a consumer can keep an exiting process from blocking on
+       the interpreter shutdown - see AGENT-README.txt, "SHUTTING DOWN AT
+       PROCESS EXIT".
 ================================================================================
