@@ -153,8 +153,9 @@ TESTING
 =======
     dotnet test CodeBrix.Python.slnx
 
-As of 2026-09-17 (Debian 13, .NET SDK 10.0.401, CPython 3.13.5) that reports
-355 passed, 0 failed, 0 skipped across the test projects. Each test executable
+As of 2026-09-17 - commit 05567e9, Debian 13, .NET SDK 10.0.401, CPython 3.13.5,
+xunit.v3 4.0.1 and Microsoft.NET.Test.Sdk 18.10.1 - that reports 360 passed,
+0 failed, 0 skipped across the test projects. Each test executable
 can also be run directly, which is the quickest way to see one project's
 summary line and to confirm it exits on its own:
 
@@ -180,7 +181,8 @@ The test projects:
   tests/CodeBrix.Python.Tests
       The embedding tests, converted from the upstream NUnit suite to xUnit v3
       + SilverAssertions. They embed a real CPython interpreter.
-      As of 2026-09-17 (on CPython 3.13): 339 passing, 0 failing, 0 skipped.
+      As of 2026-09-17 (commit 05567e9, on CPython 3.13): 344 passing,
+      0 failing, 0 skipped.
       Deterministic across runs. The count shows 0 skipped because the upstream
       [Explicit] / environment-gated cases are fenced behind compile-time
       symbols that are intentionally left UNDEFINED
@@ -202,8 +204,8 @@ The test projects:
       over cases from the carried-over .py suite (clr.AddReference assembly
       discovery included); and two reflection-only fences that the assembly
       fixture and the parallelization setting are still declared. As of
-      2026-09-17 (on CPython 3.13): 7 passing, 0 failing, 0 skipped, and the
-      test executable exits on its own. The .py suite can also be run directly
+      2026-09-17 (commit 05567e9, on CPython 3.13): 7 passing, 0 failing,
+      0 skipped, and the test executable exits on its own. The .py suite can also be run directly
       with pytest against the built assemblies.
 
 Test parallelization is DISABLED assembly-wide and engine init/shutdown happens
@@ -261,8 +263,8 @@ hoisted to assembly scope for deterministic ordering.
         macOS    ../bin/python3 relative to the libpython named by the
                  "PythonMacOsPath" key of appsettings.json.
       If none is found the fixture fails with a message naming the key to set.
-      As of 2026-09-17 (on CPython 3.13): 9 passing, 0 failing, 0 skipped, and
-      the test executable exits on its own.
+      As of 2026-09-17 (commit 05567e9, on CPython 3.13): 9 passing, 0 failing,
+      0 skipped, and the test executable exits on its own.
       CAVEAT worth knowing when reading failures: a virtual environment records
       the base interpreter it was made from. When that interpreter moves to a
       new minor version the environment stops working until it is recreated.
@@ -299,6 +301,22 @@ task is already complete when they run, so the continuation is synchronous.)
 Wait by polling instead, as ProcessExitShutdownModeTests does; its poll uses the
 test's CancellationToken as the wait handle, so a cancelled run still stops
 promptly.
+
+RequiresEngineThreadAttribute enforces that rule. It is a
+Xunit.v3.BeforeAfterTestAttribute whose Before() fails the test when the current
+managed thread is not Runtime.MainManagedThreadId, with a message naming both
+threads and explaining that an awaited continuation moved the run off the
+thread that holds the GIL. It is applied ASSEMBLY-WIDE, from an
+`[assembly: RequiresEngineThread]` in its own file, so a new test class is
+covered without anyone remembering to decorate it: xunit.v3 declares
+BeforeAfterTestAttribute with AttributeTargets.Assembly and honours it there.
+That was verified rather than assumed - forcing the check to fail turned every
+test in the assembly red, on the xunit.v3 version this repository references.
+Without the guard the run dies with a native fault in an unrelated later test;
+with it, the failure names the test that was about to run and says why.
+RequiresEngineThreadAttributeTests covers the decision itself through the
+IsEngineThread / DescribeWrongThread helpers, because actually leaving the
+thread is the thing that crashes the process and so cannot be tested for real.
 
 HOW THE TESTS FIND CPYTHON
 --------------------------

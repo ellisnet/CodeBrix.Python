@@ -233,10 +233,17 @@ public class ProcessExitShutdownModeTests
                 KillIfRunning(process);
             }
 
-            // Safe to drain only now: the process is gone, so neither stream can block. The probe
-            // writes a couple of short lines, far below any pipe buffer.
-            string output = process.StandardOutput.ReadToEnd();
-            string errors = process.StandardError.ReadToEnd();
+            // Draining is safe only once the process is gone - a live child's stream would block
+            // this thread forever - so a child that somehow survived the kill above is reported
+            // without its output rather than waited on. The probe writes a couple of short lines,
+            // far below any pipe buffer.
+            string output = string.Empty;
+            string errors = string.Empty;
+            if (process.HasExited)
+            {
+                output = process.StandardOutput.ReadToEnd();
+                errors = process.StandardError.ReadToEnd();
+            }
 
             return new ProbeRun(exited, exited ? process.ExitCode : -1, output, errors);
         }
@@ -415,6 +422,11 @@ public class ProcessExitShutdownModeTests
         catch (InvalidOperationException)
         {
             // Already gone between the check and the kill.
+        }
+        catch (Win32Exception)
+        {
+            // The operating system refused the kill. Nothing more this test can do about it, and
+            // throwing from a finally would hide whatever the test was actually reporting.
         }
         catch (NotSupportedException)
         {
